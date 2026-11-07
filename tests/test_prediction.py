@@ -186,4 +186,59 @@ def test_streamlit_app_launches_without_errors() -> None:
         assert not at.exception, f"Exception occurred on page {page_name}: {at.exception}"
 
 
+def test_wsgi_entrypoints_and_portable_pipeline_parity(trained_pipeline_and_meta) -> None:
+    import json
+    import app as app_module
+    from src.prediction import PortablePipeline, _resolve_model_paths
+
+    # Verify top-level `app` and `application` WSGI exports exist for Vercel/WSGI
+    assert hasattr(app_module, "app") and callable(app_module.app)
+    assert hasattr(app_module, "application") and callable(app_module.application)
+
+    # Verify portable JSON weights match Scikit-learn pipeline probabilities to < 1e-9
+    sklearn_pipeline, _ = trained_pipeline_and_meta
+    _, _, weights_path = _resolve_model_paths()
+    assert weights_path.exists()
+    with open(weights_path, "r", encoding="utf-8") as f:
+        portable_pipe = PortablePipeline(json.load(f))
+
+    test_samples = [
+        "URGENT! You have won a £1000 FREE prize! Call 09061701461 now!",
+        "Hi team, our sprint planning meeting is scheduled for 10:30 AM tomorrow.",
+    ]
+    sk_probs = sklearn_pipeline.predict_proba(test_samples)
+    pt_probs = portable_pipe.predict_proba(test_samples)
+    for i in range(len(test_samples)):
+        assert abs(float(sk_probs[i][1]) - float(pt_probs[i][1])) < 1e-9
+
+    # Test WSGI GET / and POST /api/predict
+    status_captured = []
+
+    def start_response(status, headers):
+        status_captured.append(status)
+
+    html_chunks = list(
+        app_module.app({"PATH_INFO": "/", "REQUEST_METHOD": "GET"}, start_response)
+    )
+    assert status_captured[-1] == "200 OK"
+    assert b"MAILGUARD AI" in b"".join(html_chunks)
+
+    body_bytes = json.dumps({"email_text": test_samples[0]}).encode("utf-8")
+    api_chunks = list(
+        app_module.app(
+            {
+                "PATH_INFO": "/api/predict",
+                "REQUEST_METHOD": "POST",
+                "CONTENT_LENGTH": str(len(body_bytes)),
+                "wsgi.input": io.BytesIO(body_bytes),
+            },
+            start_response,
+        )
+    )
+    assert status_captured[-1] == "200 OK"
+    api_resp = json.loads(b"".join(api_chunks).decode("utf-8"))
+    assert api_resp["predicted_label"] == "SPAM"
+
+
+
 

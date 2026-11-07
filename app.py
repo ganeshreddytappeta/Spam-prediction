@@ -8,17 +8,32 @@ Run from the project root:
 from datetime import datetime
 import io
 import json
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, Iterable, List, Tuple
 
-import matplotlib.pyplot as plt
-import pandas as pd
-import streamlit as st
+try:
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    import streamlit as st
+    from src.data_loader import (
+        DatasetError,
+        TEXT_COLUMN_CANDIDATES,
+        read_csv_safely,
+    )
+    from src.visualization import (
+        ACCENT_BLUE,
+        HAM_COLOR,
+        SPAM_COLOR,
+        create_class_distribution_chart,
+        create_confusion_matrix_figure,
+        create_model_comparison_chart,
+        create_probability_bar_chart,
+        create_top_features_chart,
+    )
+except ImportError:
+    plt = None  # type: ignore[assignment]
+    pd = None  # type: ignore[assignment]
+    st = None  # type: ignore[assignment]
 
-from src.data_loader import (
-    DatasetError,
-    TEXT_COLUMN_CANDIDATES,
-    read_csv_safely,
-)
 from src.prediction import (
     ModelLoadError,
     PredictionInputError,
@@ -26,16 +41,22 @@ from src.prediction import (
     predict_bulk_emails,
     predict_single_email,
 )
-from src.visualization import (
-    ACCENT_BLUE,
-    HAM_COLOR,
-    SPAM_COLOR,
-    create_class_distribution_chart,
-    create_confusion_matrix_figure,
-    create_model_comparison_chart,
-    create_probability_bar_chart,
-    create_top_features_chart,
-)
+from src.web_wsgi import wsgi_app
+
+
+def app(
+    environ: Dict[str, Any],
+    start_response: Callable[[str, List[Tuple[str, str]]], Any],
+) -> Iterable[bytes]:
+    """
+    Top-level PEP 3333 WSGI application entrypoint.
+    Used by Vercel (@vercel/python), Gunicorn, uWSGI, and other WSGI servers.
+    """
+    return wsgi_app(environ, start_response)
+
+
+# Alias for WSGI servers that look for `application`
+application = app
 
 # Maximum bulk CSV file size in megabytes
 MAX_UPLOAD_SIZE_MB = 25
@@ -68,14 +89,6 @@ SAMPLE_EMAILS: Dict[str, str] = {
         "Reply CLAIM to 81010. T&amp;Cs apply.</p></body></html>"
     ),
 }
-
-
-st.set_page_config(
-    page_title="MAILGUARD AI | Email Spam Detection",
-    page_icon="🛡️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 
 def inject_custom_css() -> None:
@@ -187,10 +200,16 @@ def inject_custom_css() -> None:
     )
 
 
-@st.cache_resource(show_spinner="Loading trained MailGuard AI model pipeline...")
-def get_cached_model_and_metadata():
-    """Load and cache the trained model pipeline and metadata JSON."""
+def _load_model_and_metadata():
+    """Load the trained model pipeline and metadata JSON."""
     return load_trained_model()
+
+
+get_cached_model_and_metadata = (
+    st.cache_resource(show_spinner="Loading trained MailGuard AI model pipeline...")(_load_model_and_metadata)
+    if st is not None
+    else _load_model_and_metadata
+)
 
 
 def init_session_state() -> None:
@@ -919,6 +938,12 @@ def render_about_project_page(metadata: Dict[str, Any]) -> None:
 # MAIN APPLICATION ENTRYPOINT
 # ==============================================================================
 def main() -> None:
+    st.set_page_config(
+        page_title="MAILGUARD AI | Email Spam Detection",
+        page_icon="🛡️",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
     inject_custom_css()
     init_session_state()
 

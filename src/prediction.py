@@ -2,18 +2,31 @@
 Prediction and Inference Module for MailGuard AI.
 
 Provides safe model loading, single-email prediction with probability estimates
-and signal analysis, and bulk CSV DataFrame classification.
+and signal analysis, and bulk CSV DataFrame classification. Supports both full
+Scikit-learn/Joblib pipelines (`models/best_model.joblib`) and portable JSON
+model weights (`models/model_weights.json`) for lightweight serverless deployment.
 """
 
+from collections import Counter
 import json
+import math
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+import re
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import joblib
-import pandas as pd
+try:
+    import joblib
+except ImportError:
+    joblib = None  # type: ignore[assignment]
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None  # type: ignore[assignment]
 
 from src.preprocessing import extract_email_signals, preprocess_text
-from src.training import get_default_model_paths
+
+_TOKEN_PATTERN = re.compile(r"(?u)\b\w\w+\b")
 
 
 class ModelLoadError(Exception):
@@ -24,39 +37,147 @@ class PredictionInputError(Exception):
     """Raised when input email text or bulk DataFrame fails validation."""
 
 
+def _resolve_model_paths() -> Tuple[Path, Path, Path]:
+    root = Path(__file__).resolve().parent.parent
+    models_dir = root / "models"
+    return (
+        models_dir / "best_model.joblib",
+        models_dir / "model_metadata.json",
+        models_dir / "model_weights.json",
+    )
+
+
+class PortablePipeline:
+    """
+    Mathematically identical pure-Python execution engine for the trained
+    `EmailTextPreprocessor` + `TfidfVectorizer` + `LogisticRegression` / `MultinomialNB`
+    pipeline when deployed to serverless environments without C-extensions.
+    """
+
+    def __init__(self, weights: Dict[str, Any]) -> None:
+        self.vocab: Dict[str, int] = weights["vocabulary"]
+        self.idf: List[float] = weights["idf"]
+        self.ngram_range: Tuple[int, int] = tuple(weights.get("ngram_range", [1, 2]))  # type: ignore[assignment]
+        self.sublinear_tf: bool = bool(weights.get("sublinear_tf", True))
+        self.classifier_type: str = weights.get("classifier_type", "logistic_regression")
+        self.coef: List[float] = weights.get("coef", [])
+        self.intercept: float = float(weights.get("intercept", 0.0))
+        self.feature_log_prob_ham: List[float] = weights.get("feature_log_prob_ham", [])
+        self.feature_log_prob_spam: List[float] = weights.get("feature_log_prob_spam", [])
+        self.class_log_prior: List[float] = weights.get("class_log_prior", [0.0, 0.0])
+
+    def _vectorize_single(self, raw_text: str) -> Dict[int, float]:
+        cleaned = preprocess_text(raw_text, remove_stopwords=True)
+        tokens = _TOKEN_PATTERN.findall(cleaned.lower())
+        min_n, max_n = self.ngram_range
+        ngrams: List[str] = []
+        n_tokens = len(tokens)
+        for n in range(min_n, min(max_n + 1, n_tokens + 1)):
+            if n == 1:
+                ngrams.extend(tokens)
+            else:
+                ngrams.extend(" ".join(tokens[i : i + n]) for i in range(n_tokens - n + 1))
+
+        counts = Counter(ng for ng in ngrams if ng in self.vocab)
+        if not counts:
+            return {}
+
+        vec: Dict[int, float] = {}
+        norm_sq = 0.0
+        for term, count in counts.items():
+            idx = self.vocab[term]
+            tf = (1.0 + math.log(count)) if self.sublinear_tf else float(count)
+            val = tf * self.idf[idx]
+            vec[idx] = val
+            norm_sq += val * val
+
+        if norm_sq > 0.0:
+            norm = math.sqrt(norm_sq)
+            for idx in vec:
+                vec[idx] /= norm
+        return vec
+
+    def predict_proba(self, X: Iterable[str]) -> List[List[float]]:
+        results: List[List[float]] = []
+        for doc in X:
+            vec = self._vectorize_single(str(doc))
+            if self.classifier_type == "logistic_regression":
+                z = self.intercept + sum(val * self.coef[idx] for idx, val in vec.items())
+                if z >= 0:
+                    spam_prob = 1.0 / (1.0 + math.exp(-z))
+                else:
+                    ez = math.exp(z)
+                    spam_prob = ez / (1.0 + ez)
+                ham_prob = 1.0 - spam_prob
+                results.append([ham_prob, spam_prob])
+            else:
+                jll_ham = self.class_log_prior[0] + sum(
+                    val * self.feature_log_prob_ham[idx] for idx, val in vec.items()
+                )
+                jll_spam = self.class_log_prior[1] + sum(
+                    val * self.feature_log_prob_spam[idx] for idx, val in vec.items()
+                )
+                max_jll = max(jll_ham, jll_spam)
+                eh = math.exp(jll_ham - max_jll)
+                es = math.exp(jll_spam - max_jll)
+                total = eh + es
+                results.append([eh / total, es / total])
+        return results
+
+    def predict(self, X: Iterable[str]) -> List[int]:
+        probs = self.predict_proba(X)
+        return [1 if p[1] >= 0.5 else 0 for p in probs]
+
+
 def load_trained_model(
     model_path: Optional[Path] = None,
     metadata_path: Optional[Path] = None,
 ) -> Tuple[Any, Dict[str, Any]]:
     """
     Load the persisted Scikit-learn Pipeline and model metadata from `models/`.
+    Falls back to `models/model_weights.json` when running in a serverless
+    environment without `joblib` / `scikit-learn`.
 
     Raises
     ------
     ModelLoadError
         If the model file is missing, unreadable, or corrupted.
     """
-    default_model_path, default_meta_path = get_default_model_paths()
+    default_model_path, default_meta_path, default_weights_path = _resolve_model_paths()
     resolved_model_path = Path(model_path) if model_path else default_model_path
     resolved_meta_path = Path(metadata_path) if metadata_path else default_meta_path
 
-    if not resolved_model_path.exists():
+    pipeline: Any = None
+    if joblib is not None:
+        if not resolved_model_path.exists():
+            raise ModelLoadError(
+                f"Trained model file not found at '{resolved_model_path}'. "
+                "Please train the model first by running: python train.py"
+            )
+        try:
+            pipeline = joblib.load(resolved_model_path)
+        except Exception as exc:
+            raise ModelLoadError(
+                f"Failed to load model from '{resolved_model_path}'. The file may be corrupted. "
+                f"Please re-run `python train.py` to regenerate the model. Details: {exc}"
+            ) from exc
+    elif model_path is None and default_weights_path.exists():
+        try:
+            with open(default_weights_path, "r", encoding="utf-8") as f:
+                weights = json.load(f)
+            pipeline = PortablePipeline(weights)
+        except Exception as exc:
+            raise ModelLoadError(
+                f"Failed to load portable model weights from '{default_weights_path}': {exc}"
+            ) from exc
+    else:
         raise ModelLoadError(
-            f"Trained model file not found at '{resolved_model_path}'. "
-            "Please train the model first by running: python train.py"
+            f"Trained model file not found at '{resolved_model_path}'."
         )
-
-    try:
-        pipeline = joblib.load(resolved_model_path)
-    except Exception as exc:
-        raise ModelLoadError(
-            f"Failed to load model from '{resolved_model_path}'. The file may be corrupted. "
-            f"Please re-run `python train.py` to regenerate the model. Details: {exc}"
-        ) from exc
 
     if not hasattr(pipeline, "predict"):
         raise ModelLoadError(
-            f"The loaded object from '{resolved_model_path}' is not a valid Scikit-learn estimator."
+            f"The loaded object from '{resolved_model_path}' is not a valid estimator."
         )
 
     metadata: Dict[str, Any] = {}
@@ -79,19 +200,6 @@ def predict_single_email(
 ) -> Dict[str, Any]:
     """
     Validate and classify a single email message using the trained pipeline.
-
-    Parameters
-    ----------
-    email_text : str
-        Raw email message entered by the user.
-    pipeline : sklearn.pipeline.Pipeline
-        Loaded classification pipeline.
-
-    Returns
-    -------
-    Dict[str, Any]
-        Prediction results including label ('SPAM' or 'HAM'), binary class (1 or 0),
-        spam/ham probabilities, confidence percentage, preprocessed text, and signals.
     """
     if email_text is None or not isinstance(email_text, str):
         raise PredictionInputError("Email input must be a valid text string.")
@@ -134,28 +242,13 @@ def predict_single_email(
 
 
 def predict_bulk_emails(
-    df: pd.DataFrame,
+    df: Any,
     text_column: str,
     pipeline: Any,
-) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+) -> Tuple[Any, Dict[str, Any]]:
     """
     Classify multiple email messages from an uploaded CSV DataFrame.
-
     Handles empty or missing rows gracefully without crashing.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input DataFrame from uploaded CSV.
-    text_column : str
-        Column containing email text.
-    pipeline : sklearn.pipeline.Pipeline
-        Loaded classification pipeline.
-
-    Returns
-    -------
-    Tuple[pd.DataFrame, Dict[str, Any]]
-        (Result DataFrame with added prediction columns, Summary dictionary)
     """
     if df is None or df.empty:
         raise PredictionInputError("Uploaded DataFrame is empty.")
@@ -169,7 +262,6 @@ def predict_bulk_emails(
     result_df = df.copy()
     raw_series = result_df[text_column]
 
-    # Identify valid vs empty/missing messages
     valid_mask = raw_series.notna() & (raw_series.astype(str).str.strip() != "")
     also_valid_tokens = raw_series.fillna("").astype(str).apply(lambda x: bool(preprocess_text(x)))
     valid_mask = valid_mask & also_valid_tokens

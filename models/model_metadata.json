@@ -1,6 +1,6 @@
 {
   "project_name": "MAILGUARD AI - Email Spam Detection System",
-  "trained_at_utc": "2026-11-07T15:57:01.046814+00:00",
+  "trained_at_utc": "2026-11-07T16:40:44.197366+00:00",
   "selected_model": "Logistic Regression",
   "selection_reason": "Logistic Regression was selected as the production model because it achieved the highest Spam F1-Score (94.62% vs 94.07% for Multinomial Naive Bayes), with Spam Precision of 95.35%, Spam Recall of 93.89%, Overall Accuracy of 98.65%, only 6 False Positives (legitimate emails marked as spam), and 8 False Negatives (missed spam emails).",
   "model_file": "best_model.joblib",

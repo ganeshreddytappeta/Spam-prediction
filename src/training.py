@@ -223,5 +223,42 @@ def train_and_save_models(
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
 
+    # Also export portable JSON weights for lightweight serverless / WSGI runtimes
+    weights_path = model_path.parent / "model_weights.json"
+    _export_portable_weights(best_pipeline, weights_path)
+
     return metadata
+
+
+def _export_portable_weights(pipeline: Pipeline, output_path: Path) -> None:
+    """
+    Export the exact learned TF-IDF vocabulary, IDF weights, and linear classifier
+    parameters to JSON so serverless runtimes can execute identical mathematical
+    inference even without native C-extensions.
+    """
+    tfidf: TfidfVectorizer = pipeline.named_steps["tfidf"]
+    clf = pipeline.named_steps["classifier"]
+
+    vocab = {str(term): int(idx) for term, idx in tfidf.vocabulary_.items()}
+    idf = [float(val) for val in tfidf.idf_]
+
+    payload: Dict[str, Any] = {
+        "ngram_range": list(tfidf.ngram_range),
+        "sublinear_tf": bool(tfidf.sublinear_tf),
+        "vocabulary": vocab,
+        "idf": idf,
+    }
+
+    if hasattr(clf, "coef_") and hasattr(clf, "intercept_"):
+        payload["classifier_type"] = "logistic_regression"
+        payload["coef"] = [float(val) for val in clf.coef_[0]]
+        payload["intercept"] = float(clf.intercept_[0])
+    elif hasattr(clf, "feature_log_prob_") and hasattr(clf, "class_log_prior_"):
+        payload["classifier_type"] = "multinomial_nb"
+        payload["feature_log_prob_ham"] = [float(val) for val in clf.feature_log_prob_[0]]
+        payload["feature_log_prob_spam"] = [float(val) for val in clf.feature_log_prob_[1]]
+        payload["class_log_prior"] = [float(val) for val in clf.class_log_prior_]
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f)
 

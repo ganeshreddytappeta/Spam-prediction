@@ -10,7 +10,15 @@ import html
 import re
 from typing import Any, Dict, Iterable, List
 
-from sklearn.base import BaseEstimator, TransformerMixin
+try:
+    from sklearn.base import BaseEstimator, TransformerMixin
+except ImportError:
+    class BaseEstimator:  # type: ignore[no-redef]
+        pass
+
+    class TransformerMixin:  # type: ignore[no-redef]
+        def fit_transform(self, X: Any, y: Any = None) -> Any:
+            return self.fit(X, y).transform(X)
 
 # Regular expressions compiled once for fast execution
 HTML_ANCHOR_LINK_PATTERN = re.compile(r"<a\b[^>]*href\s*=\s*[^>]+>", re.IGNORECASE)
