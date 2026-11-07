@@ -1,0 +1,418 @@
+{
+  "project_name": "MAILGUARD AI - Email Spam Detection System",
+  "trained_at_utc": "2026-11-07T15:57:01.046814+00:00",
+  "selected_model": "Logistic Regression",
+  "selection_reason": "Logistic Regression was selected as the production model because it achieved the highest Spam F1-Score (94.62% vs 94.07% for Multinomial Naive Bayes), with Spam Precision of 95.35%, Spam Recall of 93.89%, Overall Accuracy of 98.65%, only 6 False Positives (legitimate emails marked as spam), and 8 False Negatives (missed spam emails).",
+  "model_file": "best_model.joblib",
+  "vocabulary_size": 6000,
+  "tfidf_configuration": {
+    "ngram_range": [
+      1,
+      2
+    ],
+    "max_features": 6000,
+    "min_df": 2,
+    "sublinear_tf": true,
+    "explanation": "Unigrams and bigrams (1, 2) with max_features=6000, min_df=2, and sublinear_tf=True capture both individual spam keywords ('free', 'claim') and multi-word promotional phrases ('click here', 'prize reward') while filtering out rare single-occurrence typos."
+  },
+  "dataset_statistics": {
+    "dataset_path": "C:\\Users\\ganes\\OneDrive\\Desktop\\SL-Classification\\data\\emails.csv",
+    "initial_rows": 5572,
+    "initial_columns": 5,
+    "original_columns": [
+      "v1",
+      "v2",
+      "Unnamed: 2",
+      "Unnamed: 3",
+      "Unnamed: 4"
+    ],
+    "unnamed_columns_merged": [
+      "Unnamed: 2",
+      "Unnamed: 3",
+      "Unnamed: 4"
+    ],
+    "column_dtypes": {
+      "v1": "str",
+      "v2": "str",
+      "Unnamed: 2": "str",
+      "Unnamed: 3": "str",
+      "Unnamed: 4": "str"
+    },
+    "detected_text_column": "v2",
+    "detected_label_column": "v1",
+    "raw_unique_labels": [
+      "ham",
+      "spam"
+    ],
+    "missing_text_count": 0,
+    "missing_label_count": 0,
+    "total_missing_values": 0,
+    "rows_after_missing_removal": 5572,
+    "empty_messages_removed": 0,
+    "invalid_labels_removed": 0,
+    "exact_duplicates_detected": 403,
+    "duplicate_records_removed": 403,
+    "final_rows": 5169,
+    "final_columns": [
+      "text",
+      "label",
+      "label_name"
+    ],
+    "spam_count": 653,
+    "ham_count": 4516,
+    "spam_percentage": 12.63,
+    "ham_percentage": 87.37,
+    "avg_char_length": 79.5,
+    "avg_word_count": 15.4,
+    "avg_spam_char_length": 138.1,
+    "avg_ham_char_length": 71.0
+  },
+  "split_information": {
+    "total_samples": 5169,
+    "train_size": 4135,
+    "test_size": 1034,
+    "train_spam_count": 522,
+    "train_ham_count": 3613,
+    "test_spam_count": 131,
+    "test_ham_count": 903,
+    "test_split_ratio": 0.2,
+    "random_state": 42,
+    "stratified": true
+  },
+  "best_model_metrics": {
+    "model_name": "Logistic Regression",
+    "accuracy": 0.9865,
+    "precision": 0.9535,
+    "recall": 0.9389,
+    "f1_score": 0.9462,
+    "ham_precision": 0.9912,
+    "ham_recall": 0.9934,
+    "ham_f1_score": 0.9923,
+    "macro_f1": 0.9692,
+    "weighted_f1": 0.9864,
+    "roc_auc": 0.9954,
+    "composite_score": 0.9509,
+    "confusion_matrix": [
+      [
+        897,
+        6
+      ],
+      [
+        8,
+        123
+      ]
+    ],
+    "true_negatives": 897,
+    "false_positives": 6,
+    "false_negatives": 8,
+    "true_positives": 123,
+    "classification_report_dict": {
+      "HAM (0)": {
+        "precision": 0.9911602209944751,
+        "recall": 0.9933554817275747,
+        "f1-score": 0.9922566371681416,
+        "support": 903.0
+      },
+      "SPAM (1)": {
+        "precision": 0.9534883720930233,
+        "recall": 0.9389312977099237,
+        "f1-score": 0.9461538461538461,
+        "support": 131.0
+      },
+      "accuracy": 0.9864603481624759,
+      "macro avg": {
+        "precision": 0.9723242965437492,
+        "recall": 0.9661433897187492,
+        "f1-score": 0.9692052416609939,
+        "support": 1034.0
+      },
+      "weighted avg": {
+        "precision": 0.9863874819170184,
+        "recall": 0.9864603481624759,
+        "f1-score": 0.9864157613239707,
+        "support": 1034.0
+      }
+    },
+    "classification_report_text": "              precision    recall  f1-score   support\n\n     HAM (0)     0.9912    0.9934    0.9923       903\n    SPAM (1)     0.9535    0.9389    0.9462       131\n\n    accuracy                         0.9865      1034\n   macro avg     0.9723    0.9661    0.9692      1034\nweighted avg     0.9864    0.9865    0.9864      1034\n"
+  },
+  "model_comparison": {
+    "Multinomial Naive Bayes": {
+      "model_name": "Multinomial Naive Bayes",
+      "accuracy": 0.9855,
+      "precision": 0.9754,
+      "recall": 0.9084,
+      "f1_score": 0.9407,
+      "ham_precision": 0.9868,
+      "ham_recall": 0.9967,
+      "ham_f1_score": 0.9917,
+      "macro_f1": 0.9662,
+      "weighted_f1": 0.9853,
+      "roc_auc": 0.9931,
+      "composite_score": 0.949,
+      "confusion_matrix": [
+        [
+          900,
+          3
+        ],
+        [
+          12,
+          119
+        ]
+      ],
+      "true_negatives": 900,
+      "false_positives": 3,
+      "false_negatives": 12,
+      "true_positives": 119,
+      "classification_report_dict": {
+        "HAM (0)": {
+          "precision": 0.9868421052631579,
+          "recall": 0.9966777408637874,
+          "f1-score": 0.9917355371900827,
+          "support": 903.0
+        },
+        "SPAM (1)": {
+          "precision": 0.9754098360655737,
+          "recall": 0.9083969465648855,
+          "f1-score": 0.9407114624505929,
+          "support": 131.0
+        },
+        "accuracy": 0.9854932301740812,
+        "macro avg": {
+          "precision": 0.9811259706643658,
+          "recall": 0.9525373437143364,
+          "f1-score": 0.9662234998203378,
+          "support": 1034.0
+        },
+        "weighted avg": {
+          "precision": 0.9853937229953789,
+          "recall": 0.9854932301740812,
+          "f1-score": 0.9852711718217334,
+          "support": 1034.0
+        }
+      },
+      "classification_report_text": "              precision    recall  f1-score   support\n\n     HAM (0)     0.9868    0.9967    0.9917       903\n    SPAM (1)     0.9754    0.9084    0.9407       131\n\n    accuracy                         0.9855      1034\n   macro avg     0.9811    0.9525    0.9662      1034\nweighted avg     0.9854    0.9855    0.9853      1034\n"
+    },
+    "Logistic Regression": {
+      "model_name": "Logistic Regression",
+      "accuracy": 0.9865,
+      "precision": 0.9535,
+      "recall": 0.9389,
+      "f1_score": 0.9462,
+      "ham_precision": 0.9912,
+      "ham_recall": 0.9934,
+      "ham_f1_score": 0.9923,
+      "macro_f1": 0.9692,
+      "weighted_f1": 0.9864,
+      "roc_auc": 0.9954,
+      "composite_score": 0.9509,
+      "confusion_matrix": [
+        [
+          897,
+          6
+        ],
+        [
+          8,
+          123
+        ]
+      ],
+      "true_negatives": 897,
+      "false_positives": 6,
+      "false_negatives": 8,
+      "true_positives": 123,
+      "classification_report_dict": {
+        "HAM (0)": {
+          "precision": 0.9911602209944751,
+          "recall": 0.9933554817275747,
+          "f1-score": 0.9922566371681416,
+          "support": 903.0
+        },
+        "SPAM (1)": {
+          "precision": 0.9534883720930233,
+          "recall": 0.9389312977099237,
+          "f1-score": 0.9461538461538461,
+          "support": 131.0
+        },
+        "accuracy": 0.9864603481624759,
+        "macro avg": {
+          "precision": 0.9723242965437492,
+          "recall": 0.9661433897187492,
+          "f1-score": 0.9692052416609939,
+          "support": 1034.0
+        },
+        "weighted avg": {
+          "precision": 0.9863874819170184,
+          "recall": 0.9864603481624759,
+          "f1-score": 0.9864157613239707,
+          "support": 1034.0
+        }
+      },
+      "classification_report_text": "              precision    recall  f1-score   support\n\n     HAM (0)     0.9912    0.9934    0.9923       903\n    SPAM (1)     0.9535    0.9389    0.9462       131\n\n    accuracy                         0.9865      1034\n   macro avg     0.9723    0.9661    0.9692      1034\nweighted avg     0.9864    0.9865    0.9864      1034\n"
+    }
+  },
+  "feature_insights": {
+    "top_spam_features": [
+      {
+        "feature": "phonetoken",
+        "weight": 14.5906
+      },
+      {
+        "feature": "urltoken",
+        "weight": 8.2612
+      },
+      {
+        "feature": "currencytoken",
+        "weight": 7.5299
+      },
+      {
+        "feature": "call phonetoken",
+        "weight": 5.3861
+      },
+      {
+        "feature": "reply",
+        "weight": 5.2176
+      },
+      {
+        "feature": "text",
+        "weight": 4.7914
+      },
+      {
+        "feature": "txt",
+        "weight": 4.7079
+      },
+      {
+        "feature": "free",
+        "weight": 4.1632
+      },
+      {
+        "feature": "call",
+        "weight": 4.1309
+      },
+      {
+        "feature": "mobile",
+        "weight": 4.0844
+      },
+      {
+        "feature": "stop",
+        "weight": 3.5701
+      },
+      {
+        "feature": "arsenal",
+        "weight": 3.5485
+      },
+      {
+        "feature": "your",
+        "weight": 3.4561
+      },
+      {
+        "feature": "150p",
+        "weight": 3.3698
+      },
+      {
+        "feature": "won",
+        "weight": 3.2092
+      },
+      {
+        "feature": "tones",
+        "weight": 3.1969
+      },
+      {
+        "feature": "claim",
+        "weight": 3.125
+      },
+      {
+        "feature": "exclaimtoken",
+        "weight": 3.0022
+      },
+      {
+        "feature": "service",
+        "weight": 3.0009
+      },
+      {
+        "feature": "games",
+        "weight": 2.9241
+      }
+    ],
+    "top_ham_features": [
+      {
+        "feature": "my",
+        "weight": 3.2058
+      },
+      {
+        "feature": "me",
+        "weight": 2.5306
+      },
+      {
+        "feature": "ok",
+        "weight": 2.4217
+      },
+      {
+        "feature": "got",
+        "weight": 1.913
+      },
+      {
+        "feature": "he",
+        "weight": 1.8836
+      },
+      {
+        "feature": "home",
+        "weight": 1.7393
+      },
+      {
+        "feature": "da",
+        "weight": 1.7244
+      },
+      {
+        "feature": "lol",
+        "weight": 1.5327
+      },
+      {
+        "feature": "she",
+        "weight": 1.4699
+      },
+      {
+        "feature": "lor",
+        "weight": 1.4362
+      },
+      {
+        "feature": "still",
+        "weight": 1.3964
+      },
+      {
+        "feature": "ll",
+        "weight": 1.3782
+      },
+      {
+        "feature": "oh",
+        "weight": 1.3733
+      },
+      {
+        "feature": "yup",
+        "weight": 1.3649
+      },
+      {
+        "feature": "later",
+        "weight": 1.3512
+      },
+      {
+        "feature": "know",
+        "weight": 1.3394
+      },
+      {
+        "feature": "wat",
+        "weight": 1.336
+      },
+      {
+        "feature": "day",
+        "weight": 1.3024
+      },
+      {
+        "feature": "yeah",
+        "weight": 1.3006
+      },
+      {
+        "feature": "going",
+        "weight": 1.2871
+      }
+    ]
+  }
+}
